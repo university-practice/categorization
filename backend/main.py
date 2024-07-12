@@ -24,22 +24,22 @@ async def read_root(
         data = df.dropna(subset=[columnName])
         print("TEST", data['Направление работы конференции'].unique().tolist())
         for index, row in data.iterrows():
-            # response1_data = None
-            # response2_data = None
+            response1_data = None
+            response2_data = None
 
-            # try:
-            #     response1 = requests.get("https://jsonplaceholder.typicode.com/posts/1")
-            #     response1.raise_for_status()
-            #     response1_data = response1.json()
-            # except requests.exceptions.RequestException as e:
-            #     print(f"Error with first fake request: {e}")
+            try:
+                response1 = requests.get("https://jsonplaceholder.typicode.com/posts/1")
+                response1.raise_for_status()
+                response1_data = response1.json()
+            except requests.exceptions.RequestException as e:
+                print(f"Error with first fake request: {e}")
 
-            # try:
-            #     response2 = requests.get("https://jsonplaceholder.typicode.com/posts/2")
-            #     response2.raise_for_status()
-            #     response2_data = response2.json()
-            # except requests.exceptions.RequestException as e:
-            #     print(f"Error with second fake request: {e}")
+            try:
+                response2 = requests.get("https://jsonplaceholder.typicode.com/posts/2")
+                response2.raise_for_status()
+                response2_data = response2.json()
+            except requests.exceptions.RequestException as e:
+                print(f"Error with second fake request: {e}")
 
             data.at[index, 'prediction'] = row[columnName]
 
