@@ -1,2 +1,8 @@
 fastapi
 uvicorn
+pandas
+requests
+openpyxl
+xlsxwriter
+scikit-learn
+numpy
