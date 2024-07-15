@@ -5,15 +5,32 @@ from main import find_closest_topic
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+import spacy
+from spacy import load
+from spacy.lang.ru.examples import sentences
+from spacy.lang.ru import Russian
 
 path = 'data.csv'
 
 df = pd.read_csv(path)
 
+nlp = Russian()
+load_model = load("ru_core_news_sm")
+
+def preprocess(text):
+    doc = load_model(text)
+    filtered_tokens = []
+    for token in doc:
+        if token.is_stop or token.is_punct:
+            continue
+        filtered_tokens.append(token.lemma_)
+
+    return " ".join(filtered_tokens)
+
 def find_closest_topics(title, topics):
     # Создание модели TF-IDF и вычисление матрицы TF-IDF
     vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform([title] + topics)
+    tfidf_matrix = vectorizer.fit_transform([preprocess(title)] + list(map(preprocess, topics)))
 
     # Вычисление косинусного сходства между заголовком и всеми темами
     cosine_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
@@ -37,7 +54,7 @@ themes = ['Научные основы охраны здоровья матер�
 # Прогнозы для всех элементов колонки
 predictions = []
 true_labels = df['target'].tolist()
-for title in df['title']: # замените на имя колонки с заголовками
+for title in df['annotations']: # замените на имя колонки с заголовками
     predictions.append(find_closest_topics(title, themes))
 
 
