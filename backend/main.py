@@ -18,7 +18,8 @@ async def read_root(
 	columnName: str = Form(),
 	topics: List[str] = Form(...),
 	xlsxFile: UploadFile = File(...),
-    mode: str = Form() # bert | any string
+    mode: str = Form(), # bert | any string
+    threshold: float = Form()
 ):
     try:
         file_content = await xlsxFile.read()
@@ -51,12 +52,11 @@ async def read_root(
                 tf_idf_response = requests.post(url, json=request)
                 tf_idf_response.raise_for_status()
                 tf_idf_data = tf_idf_response.json()
-                print(tf_idf_data)
             except requests.exceptions.RequestException as e:
                 print(f"Error with second fake request: {e}")
 
             if tf_idf_data is not None:
-                data.at[index, 'prediction'] = tf_idf_data["closest_topic"]
+                data.at[index, 'prediction'] = tf_idf_data["closest_topic"] if tf_idf_data["accuracy"] > threshold else ""
             else:
                 data.at[index, 'prediction'] = 'Unknown'
 
