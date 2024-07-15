@@ -2,46 +2,63 @@ from typing import List
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 import requests
 import pandas as pd
+from dotenv import load_dotenv
+import os
 from io import BytesIO, StringIO
+from topics import topics_v1
 
 from starlette.responses import StreamingResponse
 
-app = FastAPI()
+load_dotenv()
 
+app = FastAPI()
 
 @app.post("/api/categorize")
 async def read_root(
 	columnName: str = Form(),
 	topics: List[str] = Form(...),
-	xlsxFile: UploadFile = File(...)
+	xlsxFile: UploadFile = File(...),
+    mode: str = Form() # bert | any string
 ):
-    print("topics", topics)
     try:
         file_content = await xlsxFile.read()
         df = pd.read_excel(BytesIO(file_content))
         output = BytesIO()
 
         data = df.dropna(subset=[columnName])
-        print("TEST", data['Направление работы конференции'].unique().tolist())
         for index, row in data.iterrows():
             response1_data = None
-            response2_data = None
+            tf_idf_data = None
 
-            try:
-                response1 = requests.get("https://jsonplaceholder.typicode.com/posts/1")
-                response1.raise_for_status()
-                response1_data = response1.json()
-            except requests.exceptions.RequestException as e:
-                print(f"Error with first fake request: {e}")
+            if (mode == "bert"):
+                print("BERT API")
+	            # try:
+	            #     response1 = requests.get("https://jsonplaceholder.typicode.com/posts/1")
+	            #     response1.raise_for_status()
+	            #     response1_data = response1.json()
+	            # except requests.exceptions.RequestException as e:
+	            #     print(f"Error with first fake request: {e}")
 
+            url = os.getenv("TF_IDF_URL")
+            if not url:
+                return {"error": "TF_IDF not set in env"}
+
+            request = {
+                "title": row[columnName],
+                "topics": topics_v1 if mode == "bert" else topics
+            }
             try:
-                response2 = requests.get("https://jsonplaceholder.typicode.com/posts/2")
-                response2.raise_for_status()
-                response2_data = response2.json()
+                tf_idf_response = requests.post(url, json=request)
+                tf_idf_response.raise_for_status()
+                tf_idf_data = tf_idf_response.json()
+                print(tf_idf_data)
             except requests.exceptions.RequestException as e:
                 print(f"Error with second fake request: {e}")
 
-            data.at[index, 'prediction'] = row[columnName]
+            if tf_idf_data is not None:
+                data.at[index, 'prediction'] = tf_idf_data["closest_topic"]
+            else:
+                data.at[index, 'prediction'] = 'Unknown'
 
         # Запишите DataFrame обратно в BytesIO буфер
         output = BytesIO()
