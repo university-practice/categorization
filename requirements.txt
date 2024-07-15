@@ -6,3 +6,5 @@ openpyxl
 xlsxwriter
 scikit-learn
 numpy
+torch
+transformers
