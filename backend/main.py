@@ -1,4 +1,5 @@
-from typing import List
+from typing import TypedDict, List, DefaultDict, Dict
+from collections import defaultdict
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 import requests
 import pandas as pd
@@ -12,6 +13,39 @@ from starlette.responses import StreamingResponse
 load_dotenv()
 
 app = FastAPI()
+
+class Prediction(TypedDict):
+    predict: str
+    accuracy: float
+    weight: float
+
+def select_prediction(preds: List[Prediction]) -> Dict[str, float]:
+    scores: DefaultDict[str, float] = defaultdict(float)
+    max_accuracy: float = 0.0
+
+    # Суммируем оценки предсказаний
+    for pred in preds:
+        prediction: str = pred['predict']
+        score: float = pred['accuracy'] * pred['weight']
+        scores[prediction] += score
+        if pred['accuracy'] > max_accuracy:
+            max_accuracy = pred['accuracy']
+
+    closest_topic: str = max(scores, key=scores.get)
+
+    max_probability: float = scores[closest_topic]
+
+    if max_probability > 1:
+        max_probability /= sum(scores.values())
+    else:
+        max_probability = min(max_probability, 1.0)
+
+    result = {
+        "closest_topic": closest_topic,
+        "accuracy": max_probability
+    }
+
+    return result
 
 @app.post("/api/categorize")
 async def read_root(
@@ -28,35 +62,71 @@ async def read_root(
 
         data = df.dropna(subset=[columnName])
         for index, row in data.iterrows():
-            response1_data = None
+            bert_data = None
             tf_idf_data = None
+            embedding_data = None
 
-            if (mode == "bert"):
-                print("BERT API")
-	            # try:
-	            #     response1 = requests.get("https://jsonplaceholder.typicode.com/posts/1")
-	            #     response1.raise_for_status()
-	            #     response1_data = response1.json()
-	            # except requests.exceptions.RequestException as e:
-	            #     print(f"Error with first fake request: {e}")
 
-            url = os.getenv("TF_IDF_URL")
-            if not url:
+
+            tf_idf_url = os.getenv("TF_IDF_URL")
+            if not tf_idf_url:
                 return {"error": "TF_IDF not set in env"}
+
+            embedding_url = os.getenv("EMBEDDING_URL")
+            if not embedding_url:
+                return {"error": "EMBEDDING_URL not set in env"}
 
             request = {
                 "title": row[columnName],
                 "topics": topics_v1 if mode == "bert" else topics
             }
+
+            # TF-IDF
             try:
-                tf_idf_response = requests.post(url, json=request)
+                tf_idf_response = requests.post(tf_idf_url, json=request)
                 tf_idf_response.raise_for_status()
                 tf_idf_data = tf_idf_response.json()
             except requests.exceptions.RequestException as e:
                 print(f"Error with second fake request: {e}")
 
-            if tf_idf_data is not None:
-                data.at[index, 'prediction'] = tf_idf_data["closest_topic"] if tf_idf_data["accuracy"] > threshold else ""
+            # EMBEDDING
+            try:
+                embedding_response = requests.post(embedding_url, json=request)
+                embedding_response.raise_for_status()
+                embedding_data = embedding_response.json()
+            except requests.exceptions.RequestException as e:
+                print(f"Error with second fake request: {e}")
+
+			# BERT
+            if (mode == "bert"):
+                bert_url = os.getenv("BERT_URL")
+                if not bert_url:
+                    return {"error": "BERT URL not set in env"}
+                request = {
+                    "text": row[columnName]
+                }
+                try:
+                    bert_response = requests.post(bert_url, json=request)
+                    bert_response.raise_for_status()
+                    bert_data = bert_response.json()
+                    print("FROM BERT:", bert_data)
+                except requests.exceptions.RequestException as e:
+                    print(f"Error with second fake request: {e}")
+
+            if tf_idf_data is not None and embedding_data is not None:
+                best_prediction = select_prediction([
+	                {
+	                    "predict": tf_idf_data["closest_topic"],
+	                    "accuracy": tf_idf_data["accuracy"],
+	                    "weight": 0.5
+	                },
+					{
+	                    "predict": embedding_data["closest_topic"],
+	                    "accuracy": embedding_data["accuracy"],
+	                    "weight": 1
+	                }
+	            ])
+                data.at[index, 'prediction'] = best_prediction["closest_topic"] if best_prediction["accuracy"] >= threshold else ""
             else:
                 data.at[index, 'prediction'] = 'Unknown'
 

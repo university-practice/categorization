@@ -3,6 +3,8 @@ from pydantic import BaseModel
 import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, AutoModel
+from labels import labels
+import numpy as np
 
 app = FastAPI()
 
@@ -54,4 +56,20 @@ async def predict(input: TextInput):
     with torch.no_grad():
         output = model(input_id=input_ids, mask=attention_mask)
 
-    return output.detach().numpy().tolist()
+        prob_array = output.detach().numpy().tolist()
+
+        prob_array = np.array(prob_array[0])
+        max_index = np.argmax(prob_array)
+
+        max_probability = prob_array[max_index]
+
+        closest_topic = labels[max_index]
+
+        result = {
+            "closest_topic": closest_topic,
+            "accuracy": max_probability
+        }
+
+        return result
+
+    return "Error"
