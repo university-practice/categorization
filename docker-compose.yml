@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+    backend:
+        build: ./backend
+        ports:
+            - "6000:6000"
+
+    bert:
+        build: ./bert
+        ports:
+            - "6003:6000"
+
+    tf-idf:
+        build: ./tf-idf
+        ports:
+            - "6001:6000"
+
+    embedding:
+        build: ./embedding
+        ports:
+            - "6002:6000"
